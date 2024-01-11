@@ -79,7 +79,11 @@ def match_points(
 
 
 class VideoProcessor:
-    def __init__(self, video_path: str, tracker_type: Optional[str] = None):
+    def __init__(
+        self,
+        video_path: str,
+        tracker_type: Optional[str] = None,
+    ):
         self.tracker_type = tracker_type
         match tracker_type:
             case "BOOSTING":
@@ -123,8 +127,12 @@ class VideoProcessor:
         self,
         write_path: str,
         time_interval: Tuple[Optional[float], Optional[float]] = (None, None),
+        queue_length: int = 5,
         redetect_seconds: float = 1.0,
     ):
+        if queue_length < 2:
+            raise ValueError("Queue length must be >=2")
+
         vid_writer = cv2.VideoWriter(
             write_path,
             cv2.VideoWriter_fourcc(*"MJPG"),
@@ -145,7 +153,7 @@ class VideoProcessor:
             )
             piece_detector = PieceDetectorHough()
             piece_classifier = PieceClassifier("./images/pieces")
-            event_detector = EventDetector()
+            event_detector = EventDetector(queue_length)
 
             self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
             fields_res = None
@@ -223,17 +231,16 @@ class VideoProcessor:
                             )
 
                 res_frame = frame.copy()
-                draw_points(
-                    res_frame,
-                    fields_res.field_centers if fields_res is not None else [],
-                    color=(0, 255, 0),
-                )
-                draw_labels(
-                    res_frame,
-                    fields_res.field_centers,
-                    [str(i) for i in range(len(fields_res.field_centers))],
-                    color=(0, 255, 255),
-                )
+                if fields_res is not None:
+                    draw_points(
+                        res_frame, fields_res.field_centers, color=(0, 255, 0)
+                    )
+                    draw_labels(
+                        res_frame,
+                        fields_res.field_centers,
+                        [str(i) for i in range(len(fields_res.field_centers))],
+                        color=(0, 255, 255),
+                    )
                 draw_points(res_frame, piece_centers, color=(0, 0, 255))
                 draw_labels(res_frame, piece_centers, piece_labels)
                 draw_boxes(
