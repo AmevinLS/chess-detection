@@ -10,6 +10,7 @@ from .event_detect import EventDetector
 from tqdm import tqdm
 from typing import *
 import argparse
+from unittest.mock import patch
 
 ### TODO: Implement tracking.  
 def points_to_board_coords(sqr_centers: np.ndarray, points: np.ndarray) -> np.ndarray:
@@ -26,17 +27,17 @@ def points_to_board_coords(sqr_centers: np.ndarray, points: np.ndarray) -> np.nd
 def calc_presence_matrix(fields_centers: np.ndarray, piece_centers: np.ndarray) -> np.ndarray:
     # TODO: (Later probably?) improve this
     # HACK: this is pretty stupid (trying to "rotate" board here depending on the change in coordinates)
-    delta = fields_centers[1] - fields_centers[0]
-    if (delta[0] <= 0 and delta[1] >= 0) or (delta[0] <= 0 and delta[1] <= 0):
-        field_matrix = fields_centers.reshape((8,8,2))
-        field_matrix = field_matrix[:, ::-1]
-        fields_centers = fields_centers.reshape(64, 2)
-    elif (delta[0] >= 0 and delta[1] >= 0) or (delta[0] >= 0 and delta[1] <= 0):
-        field_matrix = fields_centers.reshape((8,8,2))
-        field_matrix = field_matrix[::-1, :]
-        fields_centers = fields_centers.reshape(64, 2)
-    elif (delta[0] <= 0 and delta[1] <= 0) or (delta[0] <= 0 and delta[1] >= 0):
-        fields_centers = fields_centers[::-1]
+    # delta = fields_centers[1] - fields_centers[0]
+    # if (delta[0] <= 0 and delta[1] >= 0) or (delta[0] <= 0 and delta[1] <= 0):
+    #     field_matrix = fields_centers.reshape((8,8,2))
+    #     field_matrix = field_matrix[:, ::-1]
+    #     fields_centers = fields_centers.reshape(64, 2)
+    # elif (delta[0] >= 0 and delta[1] >= 0) or (delta[0] >= 0 and delta[1] <= 0):
+    #     field_matrix = fields_centers.reshape((8,8,2))
+    #     field_matrix = field_matrix[::-1, :]
+    #     fields_centers = fields_centers.reshape(64, 2)
+    # elif (delta[0] <= 0 and delta[1] <= 0) or (delta[0] <= 0 and delta[1] >= 0):
+    #     fields_centers = fields_centers[::-1]
 
     presence_matrix = np.zeros((8, 8), dtype=np.bool_)
     vert = np.repeat(np.arange(0, 8), 8)
@@ -46,9 +47,23 @@ def calc_presence_matrix(fields_centers: np.ndarray, piece_centers: np.ndarray) 
     presence_matrix[vert[field_inds], horiz[field_inds]] = True
     return presence_matrix
 
-def match_points(points_old: np.ndarray, points_new: np.ndarray, match_all: bool = True) -> np.ndarray:
+def match_points(points_old: np.ndarray, points_new: np.ndarray, max_dist: float) -> Tuple[np.ndarray, np.ndarray]:
     # TODO: implement matching old points to new points
-    pass
+    dists = np.linalg.norm(points_old[:, np.newaxis] - points_new[np.newaxis], axis=-1)
+    valid_matrix = dists < max_dist
+
+    old_to_new = np.full(len(points_old), -1 , dtype=np.int64)
+    min_mask = (dists == dists.min(axis=1, keepdims=True))
+    inds1, inds2 = np.where(valid_matrix & min_mask)
+    old_to_new[inds1] = inds2
+
+    new_to_old = np.full(len(points_new), -1 , dtype=np.int64)
+    min_mask = (dists == dists.min(axis=0, keepdims=True))
+    inds1, inds2 = np.where(valid_matrix & min_mask)
+    new_to_old[inds1] = inds2
+
+    return old_to_new, new_to_old
+
 
 class VideoProcessor:
     def __init__(self, video_path: str, tracker_type: Optional[str] = None):
@@ -139,13 +154,17 @@ class VideoProcessor:
                 
                 if is_redetect_iter or not track_success:
                     temp_fields_res = field_detector.detect_fields_centers(frame)
-                    if temp_fields_res is not None:
+                    if fields_res is None:
                         fields_res = temp_fields_res
-                        
+                    elif temp_fields_res is not None and np.isclose(temp_fields_res.field_side_size, fields_res.field_side_size, atol=0, rtol=0.5):
+                        old_to_new, _ = match_points(fields_res.field_centers, temp_fields_res.field_centers, fields_res.field_side_size/2)
+                        if not np.any(old_to_new == -1):
+                            temp_fields_res.field_centers = temp_fields_res.field_centers[old_to_new]
+                        fields_res = temp_fields_res
 
                     # temp_piece_centers = piece_detector.piece_centers(frame, fields_res)
                     temp_piece_centers = piece_detector.piece_centers(frame, None)
-                    if temp_piece_centers is not None:
+                    if temp_piece_centers is not None and fields_res is not None:
                         piece_centers = temp_piece_centers
                         piece_labels = piece_classifier.label_points(frame, piece_centers)
                         
@@ -159,6 +178,7 @@ class VideoProcessor:
 
                 res_frame = frame.copy()
                 draw_points(res_frame, fields_res.field_centers if fields_res is not None else [], color=(0, 255, 0))
+                draw_labels(res_frame, fields_res.field_centers, [str(i) for i in range(len(fields_res.field_centers))], color=(0, 255, 255))
                 draw_points(res_frame, piece_centers, color=(0, 0, 255))
                 draw_labels(res_frame, piece_centers, piece_labels)
                 draw_boxes(res_frame, [bbox for bbox in bboxes if bbox is not None], color=(255, 0, 0))
@@ -222,4 +242,12 @@ def main():
 
 
 if __name__ == "__main__":
+    # with patch(
+    #     "sys.argv",
+    #     [
+    #         "chess_detection.video_processing", 
+    #         ".\\videos\\ChangingLights2_cropped.mp4", 
+    #         ".\\videos\\ChangingLights2_results_temp.mp4",
+    #         "--start-time", "10", "--end-time", "30", "--redetect_seconds", "1"]):
+    #     main()
     main()
