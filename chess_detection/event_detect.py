@@ -68,33 +68,43 @@ class SingleEventDetector:
     def detect(
         self, points_old: np.ndarray, points_new: np.ndarray
     ) -> EventType:
-        if np.sum(points_old) + 1 == np.sum(points_new):
+        sum_old = np.sum(points_old)
+        sum_new = np.sum(points_new)
+
+        if sum_old + 1 == sum_new:
             return EventType.NewPiece
 
         self.points_old = points_old
         self.points_new = points_new
         self.changed = self.points_old != self.points_new
-        if np.sum(points_old) == np.sum(points_new) + 1:
+        if sum_old == sum_new + 1:
             return self._case_captured()
-        return self._case_not_captured()
-
-    def _case_captured(self) -> EventType:
-        if self._is_en_passant():
-            return EventType.EnPassant
-        return EventType.Capture
-
-    def _case_not_captured(self) -> EventType:
-        if np.sum(self.changed) == 2:
-            return EventType.Move
-        if self._is_castle():
-            if self._is_short_castle():
-                return EventType.ShortCastle
-            else:
-                return EventType.LongCastle
+        if sum_old == sum_new:
+            return self._case_not_captured()
         return EventType.NoEvent
 
-    def _is_castle(self) -> bool:
-        return np.sum(self.changed) == 4
+    def _case_captured(self) -> EventType:
+        match np.sum(self.changed):
+            case 3:
+                return EventType.EnPassant
+            case 1:
+                return EventType.Capture
+            case _:
+                return EventType.NoEvent
+
+    def _case_not_captured(self) -> EventType:
+        match np.sum(self.changed):
+            case 2:
+                return EventType.Move
+            case 4:
+                if self._is_short_castle():
+                    return EventType.ShortCastle
+                elif self._is_long_castle():
+                    return EventType.LongCastle
+                else:
+                    return EventType.NoEvent
+            case _:
+                return EventType.NoEvent
 
     def _is_short_castle(self) -> bool:
         if self._changed(1, 0) and self._changed(2, 0):
@@ -107,10 +117,18 @@ class SingleEventDetector:
             return True
         return False
 
+    def _is_long_castle(self) -> bool:
+        if self._changed(0, 2) and self._changed(0, 3):
+            return True
+        if self._changed(0, 4) and self._changed(0, 5):
+            return True
+        if self._changed(7, 2) and self._changed(7, 3):
+            return True
+        if self._changed(7, 4) and self._changed(7, 5):
+            return True
+        return False
+
     def _changed(self, x: int, y: int, mirror=True):
         if mirror:
             return self.changed[x, y] is True or self.changed[y, x] is True
         return self.changed[x, y] is True
-
-    def _is_en_passant(self) -> bool:
-        return np.sum(self.changed) == 3
