@@ -232,12 +232,12 @@ class FieldDetectorHough:
         grid_res = self._pick_best_grid(cand_points[good_points_inds], cand_points, sqr_side_size)
         if grid_res is None:
             return None
-        field_centers, board_rect, field_side_size = grid_res
+        field_centers, board_rect = grid_res
 
         return FieldDetectionResults(
             field_centers=field_centers,
             board_rect=board_rect,
-            field_side_size=field_side_size
+            field_side_size=sqr_side_size
         )
 
     def _calc_cos_sims(self, points: np.ndarray) -> np.ndarray:
@@ -247,7 +247,7 @@ class FieldDetectorHough:
         cos_sims = (diff_matrix[:, np.newaxis] * diff_matrix[:, :, np.newaxis]).sum(axis=-1) / norms[:, np.newaxis] / norms[:, :, np.newaxis]
         return cos_sims
 
-    def _pick_best_grid(self, good_points: np.ndarray, all_points: np.ndarray, sqr_side_size: float) -> Tuple[np.ndarray, np.ndarray, float]:
+    def _pick_best_grid(self, good_points: np.ndarray, all_points: np.ndarray, sqr_side_size: float) -> Tuple[np.ndarray, np.ndarray]:
         def eval_box(box: np.ndarray):
             dists = np.linalg.norm(box[:, np.newaxis] - all_points[np.newaxis], axis=-1)
             min_dists = dists.min(axis=1)
@@ -259,7 +259,7 @@ class FieldDetectorHough:
         dim1_diff, dim2_diff = box[1] - box[0], box[2] - box[1]
         dim1_size = int(np.round(np.linalg.norm(dim1_diff) / sqr_side_size))
         dim2_size = int(np.round(np.linalg.norm(dim2_diff) / sqr_side_size))
-        if dim1_size == 0 or dim2_size == 0:
+        if dim1_size == 0 or dim2_size == 0 or dim1_size > 8 or dim2_size > 8:
             return None
         dim1_delta, dim2_delta = dim1_diff / dim1_size, dim2_diff / dim2_size
 
@@ -284,7 +284,7 @@ class FieldDetectorHough:
                 field_centers.append(best_box[0] + (i+0.5) * dim1_delta + (j+0.5) * dim2_delta)
         field_centers = np.array(field_centers, dtype=np.int32)
 
-        return field_centers, best_box, np.mean([dim1_delta, dim2_delta])
+        return field_centers, best_box
 
     def _get_candidate_points(self, img: np.ndarray) -> np.ndarray:
         edges = (do_gray + do_adaptive + do_otsu_canny)(img)

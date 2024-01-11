@@ -177,8 +177,9 @@ class VideoProcessor:
                             trackers, bboxes = self._create_trackers(frame, piece_centers, piece_shape)
 
                 res_frame = frame.copy()
-                draw_points(res_frame, fields_res.field_centers if fields_res is not None else [], color=(0, 255, 0))
-                draw_labels(res_frame, fields_res.field_centers, [str(i) for i in range(len(fields_res.field_centers))], color=(0, 255, 255))
+                if fields_res is not None:
+                    draw_points(res_frame, fields_res.field_centers, color=(0, 255, 0))
+                    draw_labels(res_frame, fields_res.field_centers, [str(i) for i in range(len(fields_res.field_centers))], color=(0, 255, 255))
                 draw_points(res_frame, piece_centers, color=(0, 0, 255))
                 draw_labels(res_frame, piece_centers, piece_labels)
                 draw_boxes(res_frame, [bbox for bbox in bboxes if bbox is not None], color=(255, 0, 0))
@@ -242,12 +243,12 @@ def main():
 
 
 if __name__ == "__main__":
-    # with patch(
-    #     "sys.argv",
-    #     [
-    #         "chess_detection.video_processing", 
-    #         ".\\videos\\ChangingLights2_cropped.mp4", 
-    #         ".\\videos\\ChangingLights2_results_temp.mp4",
-    #         "--start-time", "10", "--end-time", "30", "--redetect_seconds", "1"]):
-    #     main()
-    main()
+    with patch(
+        "sys.argv",
+        [
+            "chess_detection.video_processing", 
+            ".\\videos\\ChangingLights2_cropped.mp4", 
+            ".\\videos\\ChangingLights2_results_temp.mp4",
+            "--start-time", "1", "--end-time", "10", "--redetect_seconds", "1"]):
+        main()
+    # main()
