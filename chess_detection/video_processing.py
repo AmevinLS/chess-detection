@@ -1,13 +1,15 @@
 import numpy as np
 import cv2
 
+from .util import draw_points, draw_labels, draw_boxes, draw_event
+from .piece_classify import PieceClassifier
 from .field_detect import FieldDetectorHough
 from .piece_detect import PieceDetectorHough
 from .event_detect import EventDetector
 
-import tqdm
+from tqdm import tqdm
 from typing import *
-
+import argparse
 
 ### TODO: Implement tracking.  
 def points_to_board_coords(sqr_centers: np.ndarray, points: np.ndarray) -> np.ndarray:
@@ -102,7 +104,7 @@ class VideoProcessor:
 
         try:
             start_frame = 0
-            end_frame = self.video.get(cv2.CAP_PROP_FRAME_COUNT)
+            end_frame = int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))
             if time_interval[0] is not None:
                 start_frame = int(time_interval[0] * self.vid_fps)
             if time_interval[1] is not None:
@@ -198,3 +200,26 @@ class VideoProcessor:
             else:
                 bboxes.append(None)
         return bboxes
+    
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('video_path', type=str)
+    parser.add_argument('output_path', type=str)
+    parser.add_argument('--start-time', type=float)
+    parser.add_argument('--end-time', type=float)
+    parser.add_argument('--redetect_seconds', type=float, default=1.0)
+    parser.add_argument('--tracker_type', choices=["BOOSTING", "MIL", "KCF", "TLD", "MEDIANFLOW", "GOTURN", "MOSSE", "CSRT"])
+    
+    args = parser.parse_args()
+
+    video_processor = VideoProcessor(video_path=args.video_path, tracker_type=args.tracker_type)
+    video_processor.process_and_write(
+        write_path=args.output_path,
+        time_interval=(args.start_time, args.end_time),
+        redetect_seconds=args.redetect_seconds
+    )
+
+
+if __name__ == "__main__":
+    main()
