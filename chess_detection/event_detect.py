@@ -1,3 +1,4 @@
+from collections import Counter
 from enum import StrEnum
 
 import numpy as np
@@ -13,22 +14,52 @@ class EventType(StrEnum):
     ShortCastle = "Short Castle"
 
 
-# class EventDetector:
-#     def __init__(self):
-#         self.detector = EventDetector()
-#         self.detected_events = []
-
-#     def detect(self, cache: list[np.ndarray]) -> str:
-#         new_img = cache[-1]
-#         for old_img in cache[:-1]:
-#             new_event = self.detector.detect(old_img, new_img)
-#             self.detected_events.append(new_event)
-
-#     def _is_priority_event(self):
-#         if "En passant"
-
-
 class EventDetector:
+    def __init__(self, queue_len: int = 5):
+        self.detector = SingleEventDetector()
+        self.detected_events = []
+        self.cache = []
+        self.queue_len = queue_len
+
+    def push_new_points(self, points: np.ndarray) -> None:
+        if len(self.cache) == self.queue_len:
+            self.cache.pop(0)
+        self.cache.append(points)
+
+    def detect(self) -> EventType:
+        self.detected_events = []
+        new_points = self.cache[-1]
+
+        for old_points in self.cache[:-1]:
+            new_event = self.detector.detect(old_points, new_points)
+            self.detected_events.append(new_event)
+
+        if (evt := self._try_get_priority_event()) is not None:
+            return evt
+        return self._try_by_majority_rule()
+
+    def _try_get_priority_event(self) -> EventType | None:
+        for event in self.detected_events:
+            if event == EventType.EnPassant:
+                return EventType.EnPassant
+            if event == EventType.ShortCastle:
+                return EventType.ShortCastle
+            if event == EventType.LongCastle:
+                return EventType.LongCastle
+        return None
+
+    def _try_by_majority_rule(self) -> EventType:
+        self.detected_events = tuple(
+            filter(lambda x: x != EventType.NoEvent, self.detected_events)
+        )
+        if len(self.detected_events) == 0:
+            return EventType.NoEvent
+
+        counter = Counter(self.detected_events)
+        return counter.most_common(n=1)[0][0]
+
+
+class SingleEventDetector:
     def __init__(self):
         self.points_old = None
         self.points_new = None
@@ -53,14 +84,14 @@ class EventDetector:
         return EventType.Capture
 
     def _case_not_captured(self) -> EventType:
-        if np.all(self.points_old == self.points_new):
-            return EventType.NoEvent
+        if np.sum(self.changed) == 2:
+            return EventType.Move
         if self._is_castle():
             if self._is_short_castle():
                 return EventType.ShortCastle
             else:
                 return EventType.LongCastle
-        return EventType.Move
+        return EventType.NoEvent
 
     def _is_castle(self) -> bool:
         return np.sum(self.changed) == 4
