@@ -1,6 +1,5 @@
 import argparse
-from typing import *
-from unittest.mock import patch
+from typing import List, Tuple, Optional
 
 import cv2
 import numpy as np
@@ -13,7 +12,6 @@ from .piece_detect import PieceDetectorHough
 from .util import draw_boxes, draw_event, draw_labels, draw_points
 
 
-### TODO: Implement tracking.
 def points_to_board_coords(
     sqr_centers: np.ndarray, points: np.ndarray
 ) -> np.ndarray:
@@ -31,20 +29,6 @@ def points_to_board_coords(
 def calc_presence_matrix(
     fields_centers: np.ndarray, piece_centers: np.ndarray
 ) -> np.ndarray:
-    # TODO: (Later probably?) improve this
-    # HACK: this is pretty stupid (trying to "rotate" board here depending on the change in coordinates)
-    # delta = fields_centers[1] - fields_centers[0]
-    # if (delta[0] <= 0 and delta[1] >= 0) or (delta[0] <= 0 and delta[1] <= 0):
-    #     field_matrix = fields_centers.reshape((8,8,2))
-    #     field_matrix = field_matrix[:, ::-1]
-    #     fields_centers = fields_centers.reshape(64, 2)
-    # elif (delta[0] >= 0 and delta[1] >= 0) or (delta[0] >= 0 and delta[1] <= 0):
-    #     field_matrix = fields_centers.reshape((8,8,2))
-    #     field_matrix = field_matrix[::-1, :]
-    #     fields_centers = fields_centers.reshape(64, 2)
-    # elif (delta[0] <= 0 and delta[1] <= 0) or (delta[0] <= 0 and delta[1] >= 0):
-    #     fields_centers = fields_centers[::-1]
-
     presence_matrix = np.zeros((8, 8), dtype=np.bool_)
     vert = np.repeat(np.arange(0, 8), 8)
     horiz = np.tile(np.arange(0, 8), 8)
@@ -59,7 +43,6 @@ def calc_presence_matrix(
 def match_points(
     points_old: np.ndarray, points_new: np.ndarray, max_dist: float
 ) -> Tuple[np.ndarray, np.ndarray]:
-    # TODO: implement matching old points to new points
     dists = np.linalg.norm(
         points_old[:, np.newaxis] - points_new[np.newaxis], axis=-1
     )
@@ -127,7 +110,7 @@ class VideoProcessor:
         self,
         write_path: str,
         time_interval: Tuple[Optional[float], Optional[float]] = (None, None),
-        queue_length: int = 5,
+        queue_length: int = 8,
         redetect_seconds: float = 1.0,
     ):
         if queue_length < 2:
@@ -291,14 +274,41 @@ class VideoProcessor:
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("video_path", type=str)
-    parser.add_argument("output_path", type=str)
-    parser.add_argument("--start-time", type=float)
-    parser.add_argument("--end-time", type=float)
-    parser.add_argument("--redetect_seconds", type=float, default=1.0)
+    parser = argparse.ArgumentParser(
+        description="Performs chess detection on a given input video file and writes the result to an output video file",
+        epilog="Example usage: \n python -m chess_detection.video_processing ./my_chess_video.mp4 ./my_chess_video_result.mp4"
+        " --start-time 10 --end-time 50 --redetect_seconds 0.5"
+    )
+    parser.add_argument(
+        "video_path", 
+        help="Specifies the input video path",
+        type=str
+    )
+    parser.add_argument(
+        "output_path",
+        help="Specifies the output path where the result should be written to",
+        type=str
+    )
+    parser.add_argument(
+        "--start-time",
+        help="Specifies the timestamp (in seconds) in the input video from which the processing should start", 
+        type=float
+    )
+    parser.add_argument(
+        "--end-time",
+        help="Specifies the timestamp (in seconds) in the input video at which the processing should stop", 
+        type=float
+    )
+    parser.add_argument(
+        "--redetect_seconds",
+        help="Specifies the period (in seconds) with which the chessboard and pieces should be redetected", 
+        type=float, 
+        default=1.0
+    )
     parser.add_argument(
         "--tracker_type",
+        help="(not recommended) Specifies the OpenCV tracker type to be utized (warning: significantly increases processing time)",
+        type=str,
         choices=[
             "BOOSTING",
             "MIL",
@@ -324,12 +334,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # with patch(
-    #     "sys.argv",
-    #     [
-    #         "chess_detection.video_processing",
-    #         ".\\videos\\ChangingLights2_cropped.mp4",
-    #         ".\\videos\\ChangingLights2_results_temp.mp4",
-    #         "--start-time", "10", "--end-time", "30", "--redetect_seconds", "1"]):
-    #     main()
     main()

@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-from typing import *
+from typing import Optional
 
 from .util import Pipeline, f, do_gray
 from .field_detect import FieldDetectionResults

@@ -3,7 +3,7 @@ import numpy as np
 
 import glob
 import os
-from typing import *
+from typing import Optional, Tuple
 
 from .util import clahe_channels, do_gray
 from .field_detect import FieldDetectionResults
@@ -59,7 +59,10 @@ class PieceClassifier:
         if self.do_clahe:
             source_patch = clahe_channels(do_gray(source_patch), tileGridSize=(9, 9))
             match_img = clahe_channels(do_gray(match_img), tileGridSize=(9, 9))
-        res = cv2.matchTemplate(source_patch, match_img, self.match_method)
+        try:
+            res = cv2.matchTemplate(source_patch, match_img, self.match_method)
+        except Exception:
+            return 0
         return res[0, 0]
     
     def _match_image_whole(self, source_img: np.ndarray, match_img: np.ndarray):
